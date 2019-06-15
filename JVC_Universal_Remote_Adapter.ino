@@ -32,12 +32,13 @@
 // Address that the radio responds to
 #define ADDRESS 0x47 // 47
 
-//float remoteVoltages [10] = { 2.51, 4.25, 3.91, 0.46, 3.44, 3.63, 1.06, 4.05, 4.34, 2.83 };
-float remoteVoltages [10] = { 2.51, 4.25, 3.91, 0.46, 3.44, 3.63, 1.16, 4.05, 4.34, 2.83 };
+//float remoteVoltages [10] = { 2.51, 4.25, 3.91, 0.46, 3.44, 3.63, 1.16, 4.05, 4.34, 2.83 };
+float remoteVoltages [10] = { 0.502, 0.85, 0.782, 0.092, 0.688, 0.726, 0.232, 0.81, 0.868, 0.566 };
 unsigned char mappedCommands [10] = { SOURCE, EQUALIZER, FOLDERFORW, FOLDERBACK, VOICECTRL, VOLUP, VOLDOWN, NEXTTRACK, PREVTRACK, MUTE };
 
 unsigned char lastPushed = 0;
 unsigned long currentTime, lastPushedTime;
+float baseVoltageOne, baseVoltageTwo = 0; // This will be the voltage if there is no button pressed
 
 float ConvertVoltage(int analogValue) {
   return analogValue * (5.0 / 1023.0);
@@ -56,11 +57,16 @@ unsigned char GetInput(void) {
 
   float voltageThreshold = 4.95;
 
+  // Keep track of the base voltage in case it changed since bootup
+  if ( keyOneVoltage > 4.45 ) { baseVoltageOne = keyOneVoltage; }
+  if ( keyTwoVoltage > 4.45 ) { baseVoltageTwo = keyTwoVoltage; }
+
   unsigned char currentButton = 0;
   
   // Only do something if any of the buttons is pushed
-  if (keyOneVoltage < voltageThreshold || keyTwoVoltage < voltageThreshold) {
+  if (keyOneVoltage < baseVoltageOne || keyTwoVoltage < baseVoltageTwo) {
     float currentVoltage = keyOneVoltage;
+    float baseVoltage = baseVoltageOne;
 
     Serial.println(keyOneVoltage);
     Serial.println(keyTwoVoltage);
@@ -69,10 +75,13 @@ unsigned char GetInput(void) {
     int i = 0;
     for ( i=0 ; i<10 ; ++i ) {
       // From 5 to 10, we need the voltage from the second pin
-      if (i >= 5) { currentVoltage = keyTwoVoltage; }
+      if (i >= 5) { 
+        currentVoltage = keyTwoVoltage; 
+        baseVoltage = baseVoltageTwo;
+      }
 
       // If the voltage drop is within the threshold
-      if ( AroundValue(remoteVoltages[i], currentVoltage) ) {
+      if ( AroundValue(remoteVoltages[i] * baseVoltage, currentVoltage) ) {
         // Send the command if the pushed button is not last pushed one
         // or if it is the last one but it is at least 300ms later 
         if ( lastPushed != mappedCommands[i] || (lastPushed == mappedCommands[i] && currentTime >= lastPushedTime + 300) ) {
